@@ -1689,6 +1689,81 @@ class DreamSystemV12Final:
         # Padrões de aprendizado
         self.successful_patterns = defaultdict(list)
         self.error_patterns = defaultdict(list)
+    # Adicione este novo método dentro da classe DreamSystemV12Final
+
+    def _handle_planning_task(self, state: CognitiveState):
+        """Handler para tarefas de planejamento."""
+        state.strategy = ReasoningStrategy.HIERARCHICAL_PLANNING
+        state.reasoning_trace.append("📝 DREAM: Gerando plano hierárquico")
+        
+        if not self.ollama_client.available:
+            self._handle_fallback(state)
+            return
+        
+        prompt = f"""Você é um especialista em planejamento estratégico e gerenciamento de projetos.
+    Analise a seguinte tarefa e crie um plano detalhado, passo a passo, para alcançá-la.
+
+    TAREFA: "{state.problem}"
+
+    Divida a solução em etapas lógicas e acionáveis. Forneça um resumo do plano e, em seguida, detalhe cada passo.
+
+    Responda em formato JSON com a seguinte estrutura:
+    {{
+        "plan_summary": "Um resumo conciso do plano geral.",
+        "steps": [
+            {{
+                "step": 1,
+                "title": "Título do Passo 1",
+                "description": "Descrição detalhada do que fazer neste passo.",
+                "deliverable": "O que será produzido ou alcançado ao final deste passo."
+            }},
+            {{
+                "step": 2,
+                "title": "Título do Passo 2",
+                "description": "Descrição detalhada do que fazer neste passo.",
+                "deliverable": "O que será produzido ou alcançado ao final deste passo."
+            }}
+        ],
+        "final_goal": "O objetivo final que será alcançado ao seguir todos os passos."
+    }}
+    """
+        
+        try:
+            response = self.ollama_client.chat(
+                messages=[{'role': 'user', 'content': prompt}], 
+                format='json', 
+                temperature=0.2
+            )
+            
+            data = ResponseValidator.validate_json_response(
+                response['message']['content'], 
+                required_fields=['plan_summary', 'steps', 'final_goal']
+            )
+            
+            # Formatar a resposta para o usuário
+            solution_parts = [
+                f"**📝 PLANO ESTRATÉGICO GERADO PARA:** {state.problem}\n",
+                f"**🎯 OBJETIVO FINAL:** {data.get('final_goal', 'N/A')}\n",
+                f"**📜 RESUMO DO PLANO:**\n{data.get('plan_summary', 'N/A')}\n",
+                "---",
+                "**👣 PASSOS DETALHADOS:**\n"
+            ]
+            
+            steps = data.get('steps', [])
+            if not isinstance(steps, list): steps = [] # Garantir que steps seja uma lista
+
+            for step_data in steps:
+                solution_parts.append(f"**PASSO {step_data.get('step', '?')}: {step_data.get('title', 'N/A')}**")
+                solution_parts.append(f"   - **Descrição:** {step_data.get('description', 'N/A')}")
+                solution_parts.append(f"   - **Entregável:** {step_data.get('deliverable', 'N/A')}\n")
+
+            state.solution = "\n".join(solution_parts)
+            state.success = True
+            state.confidence = 0.90
+            
+        except Exception as e:
+            logging.error(f"Erro ao gerar plano: {e}", exc_info=True)
+            self._handle_fallback(state)
     
     def solve_problem(self, problem: str, context: Dict = None) -> CognitiveState:
         """Resolução final robusta e unificada de problemas"""
@@ -1732,6 +1807,9 @@ class DreamSystemV12Final:
                 
             elif state.intent == IntentType.RIDDLE_LOGIC:
                 self._handle_riddle_logic(state)
+            
+            elif state.intent == IntentType.PLANNING_TASK:
+                self._handle_planning_task(state)
                 
             elif state.intent in [
                 IntentType.FACTUAL_QUERY, 
