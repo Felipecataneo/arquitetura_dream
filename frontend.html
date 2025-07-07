@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DREAM V12.2 - Sistema Unificado</title>
+    <title>DREAM V12.3 - Sistema Unificado</title>
     <style>
+        /* ... (CSS existente permanece o mesmo) ... */
         :root {
             --bg-gradient-start: #1e2a52;
             --bg-gradient-end: #342a53;
@@ -69,6 +70,26 @@
             border: 1px solid var(--panel-border);
             margin-bottom: 20px;
         }
+
+        /* --- NOVO: Estilo para o seletor de modelo --- */
+        .model-selector-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        #modelSelector {
+            background: rgba(0,0,0,0.2);
+            color: var(--text-light);
+            padding: 8px 12px;
+            border: 1px solid var(--panel-border);
+            border-radius: 8px;
+            font-size: 1em;
+        }
+        #modelSelector:focus {
+            outline: 2px solid var(--primary-accent);
+        }
+
 
         .panel-header {
             font-size: 1.4em;
@@ -209,11 +230,18 @@
 <body>
     <div class="container">
         <header class="header">
-            <h1>DREAM V12.2</h1>
+            <h1>DREAM V12.3</h1>
             <p>Interface do Sistema Unificado e Robusto</p>
         </header>
 
         <section class="examples-section">
+            <!-- NOVO: Seção para seleção de modelo -->
+            <div class="model-selector-container">
+                <label for="modelSelector"><strong>🤖 Modelo Ativo:</strong></label>
+                <select id="modelSelector">
+                    <option>Carregando modelos...</option>
+                </select>
+            </div>
             <div class="panel-header">🚀 Comandos Rápidos</div>
             <div class="example-buttons">
                 <button class="example-btn" onclick="askExample('Crie uma calculadora Python simples com GUI usando tkinter')">💻 Calculadora GUI</button>
@@ -250,22 +278,28 @@
 
     <script>
         // --- API & State Management ---
-        const API_URL = "http://127.0.0.1:5000/solve"; // Adjust if your server runs elsewhere
+        const API_BASE_URL = "http://127.0.0.1:5000";
 
         async function sendMessage() {
             const userInput = document.getElementById('userInput');
+            const modelSelector = document.getElementById('modelSelector');
             const message = userInput.value.trim();
             if (!message) return;
 
+            const selectedModel = modelSelector.value;
             addMessage(message, true);
             userInput.value = '';
             setLoading(true);
 
             try {
-                const response = await fetch(API_URL, {
+                const response = await fetch(`${API_BASE_URL}/solve`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ problem: message })
+                    // NOVO: Enviar o modelo selecionado no corpo da requisição
+                    body: JSON.stringify({ 
+                        problem: message,
+                        model: selectedModel 
+                    })
                 });
 
                 if (!response.ok) {
@@ -278,7 +312,7 @@
                 console.error("API Error:", error);
                 const errorResponse = {
                     success: false,
-                    solution: `**🚨 Erro de Conexão com API**\n\nFalha ao conectar com o backend DREAM.\n\n- **O servidor Python está rodando?**\n- **A URL \`${API_URL}\` está correta?**\n\nDetalhes do erro: ${error.message}`
+                    solution: `**🚨 Erro de Conexão com API**\n\nFalha ao conectar com o backend DREAM.\n\n- **O servidor Python está rodando?**\n- **A URL \`${API_BASE_URL}\` está correta?**\n\nDetalhes do erro: ${error.message}`
                 };
                 renderResponse(errorResponse);
                 updateSystemStatus({intent: 'Erro', strategy: 'Conexão Falhou'});
@@ -287,6 +321,34 @@
             }
         }
 
+        // --- NOVO: Função para buscar e popular os modelos disponíveis ---
+        async function loadAvailableModels() {
+            const modelSelector = document.getElementById('modelSelector');
+            try {
+                const response = await fetch(`${API_BASE_URL}/available_models`);
+                if (!response.ok) throw new Error("Falha ao buscar modelos");
+                const models = await response.json();
+
+                modelSelector.innerHTML = ''; // Limpa as opções de carregamento
+                if (models.length > 0) {
+                    models.forEach(model => {
+                        const option = document.createElement('option');
+                        option.value = model;
+                        option.textContent = model;
+                        modelSelector.appendChild(option);
+                    });
+                } else {
+                     modelSelector.innerHTML = '<option>Nenhum modelo disponível</option>';
+                     modelSelector.disabled = true;
+                }
+            } catch (error) {
+                console.error("Erro ao carregar modelos:", error);
+                modelSelector.innerHTML = '<option>Erro ao carregar</option>';
+                modelSelector.disabled = true;
+            }
+        }
+        
+        // ... (O restante do JavaScript permanece o mesmo) ...
         // --- UI Rendering ---
         function addMessage(content, isUser) {
             const messagesContainer = document.getElementById('chatMessages');
@@ -295,11 +357,19 @@
 
             const avatar = document.createElement('div');
             avatar.className = 'avatar';
-            avatar.textContent = isUser ? '👤' : '🧠';
+            avatar.textContent = isUser ? '👤' : '🤖'; // Mudei o avatar do assistente
             
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
-            contentDiv.innerHTML = isUser ? content : "Processando resposta..."; // Placeholder for assistant
+            
+            // NOVO: Exibe o modelo usado na resposta do assistente
+            if (!isUser) {
+                const modelSelector = document.getElementById('modelSelector');
+                const modelUsed = modelSelector.value;
+                contentDiv.innerHTML = `<small style="opacity:0.7;display:block;margin-bottom:8px;">Resposta de: <strong>${modelUsed}</strong></small> Processando...`;
+            } else {
+                contentDiv.innerHTML = content;
+            }
             
             messageWrapper.appendChild(avatar);
             messageWrapper.appendChild(contentDiv);
@@ -316,47 +386,41 @@
             
             if (!targetElement) return;
             
-            let html = '';
+            // NOVO: Preserva a informação do modelo usado
+            const modelInfoHTML = targetElement.innerHTML.split('Processando...')[0];
+            let html = modelInfoHTML;
             
-            // Main solution
             if (response.solution) {
                 html += formatSolutionText(response.solution);
             } else {
                 html += "Nenhuma solução primária fornecida.";
             }
 
-            // Code Execution Result
             if (response.code_execution) {
                 html += renderCodeExecution(response.code_execution);
             }
             
-            // Advanced Details (collapsible)
-            const hasAdvancedDetails = response.reasoning_trace || response.meta_insights;
+            const hasAdvancedDetails = response.reasoning_trace && response.reasoning_trace.length > 0;
             if (hasAdvancedDetails) {
                 html += '<details class="details-section">';
                 html += '<summary>Mostrar Detalhes Avançados</summary>';
 
                 if (response.reasoning_trace) {
                     html += '<h4>Rastro de Raciocínio</h4>';
-                    html += `<div class="trace-list">${response.reasoning_trace.map(s => `<div>- ${s}</div>`).join('')}</div>`;
+                    html += `<div class="trace-list">${response.reasoning_trace.map(s => `<div>- ${s.replace(/</g, "<").replace(/>/g, ">")}</div>`).join('')}</div>`;
                 }
-                if (response.meta_insights) {
-                    html += '<h4>Insights Meta-Cognitivos</h4>';
-                    html += `<div class="trace-list">${response.meta_insights.map(s => `<div>• ${s}</div>`).join('')}</div>`;
-                }
-
+                
                 html += '</details>';
             }
 
             targetElement.innerHTML = html;
             
-            // Add copy functionality to new code blocks
             targetElement.querySelectorAll('.copy-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     const code = btn.previousElementSibling.textContent;
                     navigator.clipboard.writeText(code).then(() => {
-                        btn.textContent = 'Copied!';
-                        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+                        btn.textContent = 'Copiado!';
+                        setTimeout(() => { btn.textContent = 'Copiar'; }, 2000);
                     });
                 });
             });
@@ -366,12 +430,12 @@
 
         function formatSolutionText(text) {
             let formatted = text
-                .replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">") // Sanitize basic HTML
+                .replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">")
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                 .replace(/\n/g, '<br>')
                 .replace(/```(\w*?)\<br\>([\s\S]*?)\<br\>```/g, (match, lang, code) => {
-                    const cleanCode = code.replace(/<br>/g, '\n');
-                    return `<div class="code-block"><button class="copy-btn">Copy</button><pre><code>${cleanCode}</code></pre></div>`;
+                    const cleanCode = code.replace(/<br>/g, '\n').replace(/</g, "<").replace(/>/g, ">").replace(/&/g, "&");
+                    return `<div class="code-block"><button class="copy-btn">Copiar</button><pre><code>${cleanCode}</code></pre></div>`;
                 })
                 .replace(/• (.*?)(<br>|$)/g, '<p style="margin-left: 20px;">• $1</p>');
             return formatted;
@@ -420,7 +484,6 @@
             document.getElementById('userInput').disabled = isLoading;
         }
 
-        // --- Event Handlers & Initialization ---
         function handleKeyPress(event) {
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
@@ -434,7 +497,8 @@
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            addMessage("Olá! Eu sou o DREAM V12.2, um sistema robusto. Posso gerar código, resolver enigmas e realizar raciocínios complexos. Como posso ajudar você hoje?");
+            loadAvailableModels(); // NOVO: Carregar modelos ao iniciar
+            addMessage("Olá! Sou o DREAM V12.3. Agora você pode escolher o modelo que deseja usar acima. Como posso ajudar?");
         });
     </script>
 </body>
