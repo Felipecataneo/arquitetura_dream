@@ -1,0 +1,6 @@
+# requirements.txt
+ollama
+numpy
+networkx
+Flask 
+flask-cors 

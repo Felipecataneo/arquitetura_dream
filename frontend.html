@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DREAM V12.2 - Sistema Unificado</title>
+    <style>
+        :root {
+            --bg-gradient-start: #1e2a52;
+            --bg-gradient-end: #342a53;
+            --primary-accent: #8b5cf6;
+            --secondary-accent: #3b82f6;
+            --text-light: #e2e8f0;
+            --text-dark: #1e293b;
+            --panel-bg: rgba(255, 255, 255, 0.05);
+            --panel-border: rgba(255, 255, 255, 0.1);
+            --code-bg: #111827;
+            --code-text: #a7f3d0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: var(--text-light);
+        }
+
+        .container {
+            max-width: 1400px;
+            width: 95%;
+            margin: 0 auto;
+            padding: 20px;
+            flex: 1;
+        }
+
+        .header h1 {
+            font-size: 2.8em;
+            font-weight: 800;
+            text-align: center;
+            background: -webkit-linear-gradient(45deg, #a7f3d0, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header p {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 2rem;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+
+        .chat-panel, .status-panel, .examples-section, .metrics-grid {
+            background: var(--panel-bg);
+            backdrop-filter: blur(15px);
+            border-radius: 16px;
+            padding: 25px;
+            border: 1px solid var(--panel-border);
+            margin-bottom: 20px;
+        }
+
+        .panel-header {
+            font-size: 1.4em;
+            font-weight: 600;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--panel-border);
+        }
+
+        .chat-messages {
+            height: 50vh;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 10px;
+        }
+        
+        /* Custom Scrollbar */
+        .chat-messages::-webkit-scrollbar { width: 8px; }
+        .chat-messages::-webkit-scrollbar-track { background: transparent; }
+        .chat-messages::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
+        .chat-messages::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.4); }
+
+
+        .message {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .message .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5em;
+        }
+        .message.user .avatar { background: var(--secondary-accent); }
+        .message.assistant .avatar { background: var(--primary-accent); }
+
+        .message-content {
+            max-width: calc(100% - 55px);
+            padding: 15px;
+            border-radius: 12px;
+            word-wrap: break-word;
+        }
+        .message.user .message-content { background: rgba(59, 130, 246, 0.2); }
+        .message.assistant .message-content { background: rgba(139, 92, 246, 0.1); }
+
+        .message-content strong { color: #a7f3d0; }
+        .message-content h1, .message-content h2, .message-content h3 { margin-top: 15px; }
+
+        .code-block {
+            background: var(--code-bg);
+            color: var(--code-text);
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Fira Code', 'Courier New', monospace;
+            margin: 15px 0;
+            overflow-x: auto;
+            position: relative;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #4a5568;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .code-block:hover .copy-btn { opacity: 1; }
+
+        .input-container { display: flex; gap: 10px; }
+        .input-field {
+            flex: 1;
+            padding: 15px;
+            border: 1px solid var(--panel-border);
+            border-radius: 25px;
+            background: rgba(0,0,0,0.2);
+            font-size: 1em;
+            color: var(--text-light);
+            outline: none;
+        }
+
+        .send-btn {
+            padding: 0 25px;
+            background: var(--primary-accent);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .send-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .loading { display: none; text-align: center; margin: 15px 0 0; }
+        .loading.active { display: block; }
+
+        .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .status-item { background: var(--panel-bg); padding: 10px; border-radius: 8px; font-size: 0.9em;}
+        .status-item strong { color: #a7f3d0; display: block; margin-bottom: 5px; font-size: 0.8em; text-transform: uppercase; }
+
+        .details-section { margin-top: 15px; }
+        .details-section summary { cursor: pointer; font-weight: 600; }
+        .trace-list { background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; margin-top: 10px; max-height: 150px; overflow-y: auto;}
+        
+        .code-execution { border: 1px solid var(--panel-border); border-radius: 8px; margin-top: 15px; }
+        .code-execution-header { padding: 10px 15px; font-weight: 600; border-bottom: 1px solid var(--panel-border); }
+        .code-execution-header.success { background: rgba(74, 222, 128, 0.1); color: #a7f3d0; }
+        .code-execution-header.error { background: rgba(248, 113, 113, 0.1); color: #fca5a5; }
+        .code-execution-body { padding: 15px; font-family: 'Fira Code', monospace; font-size: 0.9em; max-height: 200px; overflow-y: auto; }
+        .code-execution-body pre { white-space: pre-wrap; word-wrap: break-word; }
+
+        .example-buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+        .example-btn {
+            padding: 10px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-light);
+            border: 1px solid var(--panel-border);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .example-btn:hover { background: var(--primary-accent); }
+
+        @media (max-width: 900px) { .main-content { grid-template-columns: 1fr; } }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Fira+Code&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>DREAM V12.2</h1>
+            <p>Interface do Sistema Unificado e Robusto</p>
+        </header>
+
+        <section class="examples-section">
+            <div class="panel-header">🚀 Comandos Rápidos</div>
+            <div class="example-buttons">
+                <button class="example-btn" onclick="askExample('Crie uma calculadora Python simples com GUI usando tkinter')">💻 Calculadora GUI</button>
+                <button class="example-btn" onclick="askExample('O que pesa mais, um quilograma de aço ou um quilograma de penas?')">🎪 Enigma Lógico</button>
+                <button class="example-btn" onclick="askExample('Quantas vezes a letra e aparece nesta frase?')">🔢 Pergunta Simples</button>
+                <button class="example-btn" onclick="askExample('Explique a relação entre relatividade geral e mecânica quântica.')">🔬 Pergunta Acadêmica</button>
+            </div>
+        </section>
+        
+        <div class="main-content">
+            <div class="chat-panel">
+                <div class="panel-header">💬 Conversa</div>
+                <div class="chat-messages" id="chatMessages"></div>
+                <div class="input-container">
+                    <input type="text" class="input-field" id="userInput" placeholder="Faça qualquer pergunta, ou use um comando como 'relatório'..." onkeypress="handleKeyPress(event)">
+                    <button class="send-btn" id="sendBtn" onclick="sendMessage()">Enviar</button>
+                </div>
+                <div class="loading" id="loading">Pensando...</div>
+            </div>
+
+            <div class="status-panel">
+                <div class="panel-header">📊 Análise da Última Resposta</div>
+                <div class="status-grid">
+                    <div class="status-item"><strong>Status</strong> <span id="lastStatus">Pronto</span></div>
+                    <div class="status-item"><strong>Intenção</strong> <span id="lastIntent">Nenhuma</span></div>
+                    <div class="status-item"><strong>Estratégia</strong> <span id="lastStrategy">Nenhuma</span></div>
+                    <div class="status-item"><strong>Confiança</strong> <span id="lastConfidence">0.00</span></div>
+                    <div class="status-item"><strong>Tempo</strong> <span id="responseTime">0.0s</span></div>
+                    <div class="status-item"><strong>Modo</strong> <span id="lastMode">Normal</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- API & State Management ---
+        const API_URL = "http://127.0.0.1:5000/solve"; // Adjust if your server runs elsewhere
+
+        async function sendMessage() {
+            const userInput = document.getElementById('userInput');
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            addMessage(message, true);
+            userInput.value = '';
+            setLoading(true);
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ problem: message })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const data = await response.json();
+                renderResponse(data);
+                updateSystemStatus(data);
+            } catch (error) {
+                console.error("API Error:", error);
+                const errorResponse = {
+                    success: false,
+                    solution: `**🚨 Erro de Conexão com API**\n\nFalha ao conectar com o backend DREAM.\n\n- **O servidor Python está rodando?**\n- **A URL \`${API_URL}\` está correta?**\n\nDetalhes do erro: ${error.message}`
+                };
+                renderResponse(errorResponse);
+                updateSystemStatus({intent: 'Erro', strategy: 'Conexão Falhou'});
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // --- UI Rendering ---
+        function addMessage(content, isUser) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageWrapper = document.createElement('div');
+            messageWrapper.className = `message ${isUser ? 'user' : 'assistant'}`;
+
+            const avatar = document.createElement('div');
+            avatar.className = 'avatar';
+            avatar.textContent = isUser ? '👤' : '🧠';
+            
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'message-content';
+            contentDiv.innerHTML = isUser ? content : "Processando resposta..."; // Placeholder for assistant
+            
+            messageWrapper.appendChild(avatar);
+            messageWrapper.appendChild(contentDiv);
+            messagesContainer.appendChild(messageWrapper);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            return contentDiv; // Return for later update
+        }
+
+        function renderResponse(response) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const responseElements = messagesContainer.querySelectorAll('.message.assistant');
+            const targetElement = responseElements[responseElements.length - 1].querySelector('.message-content');
+            
+            if (!targetElement) return;
+            
+            let html = '';
+            
+            // Main solution
+            if (response.solution) {
+                html += formatSolutionText(response.solution);
+            } else {
+                html += "Nenhuma solução primária fornecida.";
+            }
+
+            // Code Execution Result
+            if (response.code_execution) {
+                html += renderCodeExecution(response.code_execution);
+            }
+            
+            // Advanced Details (collapsible)
+            const hasAdvancedDetails = response.reasoning_trace || response.meta_insights;
+            if (hasAdvancedDetails) {
+                html += '<details class="details-section">';
+                html += '<summary>Mostrar Detalhes Avançados</summary>';
+
+                if (response.reasoning_trace) {
+                    html += '<h4>Rastro de Raciocínio</h4>';
+                    html += `<div class="trace-list">${response.reasoning_trace.map(s => `<div>- ${s}</div>`).join('')}</div>`;
+                }
+                if (response.meta_insights) {
+                    html += '<h4>Insights Meta-Cognitivos</h4>';
+                    html += `<div class="trace-list">${response.meta_insights.map(s => `<div>• ${s}</div>`).join('')}</div>`;
+                }
+
+                html += '</details>';
+            }
+
+            targetElement.innerHTML = html;
+            
+            // Add copy functionality to new code blocks
+            targetElement.querySelectorAll('.copy-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const code = btn.previousElementSibling.textContent;
+                    navigator.clipboard.writeText(code).then(() => {
+                        btn.textContent = 'Copied!';
+                        setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+                    });
+                });
+            });
+
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function formatSolutionText(text) {
+            let formatted = text
+                .replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">") // Sanitize basic HTML
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\n/g, '<br>')
+                .replace(/```(\w*?)\<br\>([\s\S]*?)\<br\>```/g, (match, lang, code) => {
+                    const cleanCode = code.replace(/<br>/g, '\n');
+                    return `<div class="code-block"><button class="copy-btn">Copy</button><pre><code>${cleanCode}</code></pre></div>`;
+                })
+                .replace(/• (.*?)(<br>|$)/g, '<p style="margin-left: 20px;">• $1</p>');
+            return formatted;
+        }
+
+        function renderCodeExecution(exec) {
+            const successClass = exec.success ? 'success' : 'error';
+            let outputHtml = '';
+            if (exec.output) {
+                outputHtml += `<div><strong>Saída:</strong><pre>${exec.output}</pre></div>`;
+            }
+            if (exec.error) {
+                outputHtml += `<div><strong>Erro:</strong><pre>${exec.error}</pre></div>`;
+            }
+            if (!outputHtml) {
+                outputHtml = "<pre>Nenhuma saída ou erro registrado.</pre>";
+            }
+
+            return `
+                <div class="code-execution">
+                    <div class="code-execution-header ${successClass}">
+                        🚀 Execução do Código | Status: ${exec.success ? 'Sucesso' : 'Falha'} | Tempo: ${exec.execution_time.toFixed(3)}s
+                    </div>
+                    <div class="code-execution-body">
+                        ${outputHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateSystemStatus(response) {
+            document.getElementById('lastStatus').textContent = response.success ? '✅ Sucesso' : '❌ Falha';
+            document.getElementById('lastIntent').textContent = response.intent || 'N/D';
+            document.getElementById('lastStrategy').textContent = response.strategy || 'N/D';
+            document.getElementById('lastConfidence').textContent = (response.confidence || 0).toFixed(2);
+            document.getElementById('responseTime').textContent = `${(response.decision_time || 0).toFixed(2)}s`;
+            let mode = 'Normal';
+            if(response.cache_hit) mode = 'Cache';
+            if(response.fallback_mode) mode = 'Fallback';
+            document.getElementById('lastMode').textContent = mode;
+        }
+
+        function setLoading(isLoading) {
+            document.getElementById('loading').classList.toggle('active', isLoading);
+            document.getElementById('sendBtn').disabled = isLoading;
+            document.getElementById('userInput').disabled = isLoading;
+        }
+
+        // --- Event Handlers & Initialization ---
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        function askExample(question) {
+            document.getElementById('userInput').value = question;
+            sendMessage();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            addMessage("Olá! Eu sou o DREAM V12.2, um sistema robusto. Posso gerar código, resolver enigmas e realizar raciocínios complexos. Como posso ajudar você hoje?");
+        });
+    </script>
+</body>
+</html>
