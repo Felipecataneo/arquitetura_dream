@@ -1450,6 +1450,7 @@ IMPORTANTE: Responda APENAS com JSON válido, sem markdown."""
         start_time = time.time()
         temp_file = ""
         
+        
         try:
             # Verificar palavras-chave perigosas
             dangerous_keywords = [
@@ -1463,9 +1464,9 @@ IMPORTANTE: Responda APENAS com JSON válido, sem markdown."""
                 execution.success = False
                 return execution
             
-            # Criar arquivo temporário
+            code_with_encoding = "# -*- coding: utf-8 -*-\n" + code
             with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-                f.write(code)
+                f.write(code_with_encoding)
                 temp_file = f.name
             
             # Executar com timeout
