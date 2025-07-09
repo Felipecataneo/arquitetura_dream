@@ -1,24 +1,28 @@
 
-# 🧠 DREAM V12.3 — Sistema Cognitivo Multi-Modelo com Humildade Epistêmica
+# 🧠 DREAM V13.2 — Sistema AGI Multi-LLM Robusto com API Assíncrona
 
 ---
 
 ## 📘 Descrição
 
-**DREAM (Dynamic Reasoning and Epistemic Metacognition)** é uma arquitetura cognitiva evolutiva que transforma LLMs em agentes autoconscientes de suas limitações. Na versão 12.3, o sistema se torna **multi-modelo**, permitindo a alternância dinâmica entre LLMs locais (via Ollama) e de nuvem (via OpenAI), combinando o melhor dos dois mundos: privacidade e velocidade com poder e conhecimento de ponta.
+**DREAM (Dynamic Reasoning and Epistemic Metacognition) V13.2** é a mais recente evolução de uma arquitetura cognitiva que transforma LLMs em agentes de raciocínio robustos e autoconscientes. Esta versão representa um salto em capacidade e escalabilidade, introduzindo:
 
-O núcleo do sistema combate a "Ilusão de Pensamento" — respostas convincentes, mas logicamente falhas — utilizando uma camada metacognitiva de controle, validação simbólica e uma filosofia de **humildade epistêmica**: saber quando **não sabe**.
+1.  **Estratégias de Raciocínio Avançadas:** O sistema agora vai além da simples resposta, empregando técnicas como **debate adversarial** para verificação de fatos, **autocrítica e refinamento** para questões complexas, e **decomposição hierárquica** para sínteses amplas.
+2.  **Geração de Código de Nível Profissional:** O handler de código foi completamente redesenhado para analisar requisitos, planejar arquiteturas, gerar código de alta qualidade com templates de fallback e até mesmo tentar uma execução segura.
+3.  **API Assíncrona com FastAPI:** O backend foi migrado para FastAPI, permitindo o processamento de tarefas complexas e demoradas em segundo plano. Os usuários recebem um `task_id` imediatamente e podem consultar o status e o resultado posteriormente, evitando timeouts e melhorando a experiência do usuário.
+
+O núcleo do sistema continua a combater a "Ilusão de Pensamento" — respostas convincentes, mas falhas — utilizando uma camada metacognitiva de controle, validação e a filosofia de **humildade epistêmica**: saber quando não sabe e aplicar a melhor estratégia para cada desafio.
 
 ---
 
 ## 📁 Estrutura do Projeto
 
 ```bash
-📦 dream-v12.3
-├── arquiteto_final.py        # Núcleo cognitivo com pipeline multi-modelo
-├── server.py                 # Backend Flask para servir o sistema via API
-├── frontend.html             # Interface web com seletor de modelo
-├── requirements.txt          # Dependências Python
+📦 dream-v13.2
+├── arquiteto_final.py        # Núcleo cognitivo V13.2 com pipeline, estratégias avançadas e geração de código robusta
+├── server.py                 # Backend FastAPI para servir o sistema via API assíncrona
+├── frontend.html             # Interface web que interage com a API assíncrona (com polling)
+├── requirements.txt          # Dependências Python atualizadas
 ├── .env                      # Arquivo para chaves de API (NÃO ENVIAR PARA O GIT)
 └── README.md                 # Este arquivo
 ```
@@ -31,7 +35,7 @@ O núcleo do sistema combate a "Ilusão de Pensamento" — respostas convincente
 
 - **Git**: Para clonar o repositório.
 - **Python 3.8+**: Para executar o backend.
-- **Ollama**: (Opcional, para usar modelos locais) Certifique-se de que o [Ollama](https://ollama.com) está instalado.
+- **Ollama**: (Opcional, para usar modelos locais) Certifique-se de que o [Ollama](https://ollama.com) está instalado e em execução.
 - **Chave da API OpenAI**: (Opcional, para usar GPT) Obtenha uma chave em [platform.openai.com](https://platform.openai.com/).
 
 ### 2. Clone o repositório
@@ -43,11 +47,11 @@ cd arquitetura_dream
 
 ### 3. Configure as Dependências e Chaves
 
-> Recomendado usar um ambiente virtual:
+> É altamente recomendado usar um ambiente virtual:
 
 ```bash
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+source venv/bin/activate  # No Windows: venv\Scripts\activate
 ```
 
 **a. Instale as dependências:**
@@ -58,13 +62,11 @@ pip install -r requirements.txt
 
 **`requirements.txt` atualizado:**
 ```txt
+fastapi
+uvicorn[standard]
+python-dotenv
 ollama
-numpy
-networkx
-Flask 
-flask-cors 
 openai
-dotenv
 ```
 
 **b. Crie o arquivo de ambiente:**
@@ -76,9 +78,7 @@ OPENAI_API_KEY="sk-sua-chave-secreta-da-openai-aqui"
 ```
 > **Importante:** Adicione `.env` ao seu arquivo `.gitignore` para nunca enviá-lo para o repositório.
 
-### 4. Inicie os Modelos
-
-**a. Modelo Local (Ollama):**
+### 4. Inicie os Modelos Locais (Opcional)
 
 Se quiser usar modelos locais, inicie o Ollama e baixe o modelo desejado (o padrão é `gemma3`):
 
@@ -88,86 +88,66 @@ ollama run gemma3
 
 > O sistema funcionará mesmo que o Ollama não esteja rodando, desde que a chave da OpenAI esteja configurada.
 
-**b. Modelo de Nuvem (OpenAI):**
+### 5. Execute o Servidor FastAPI
 
-Nenhuma ação é necessária, desde que a chave no arquivo `.env` esteja correta.
-
-### 5. Execute o Servidor
-
-Na raiz do projeto, execute:
+Na raiz do projeto, execute o servidor com **Uvicorn**:
 
 ```bash
-python server.py
+uvicorn server:app --reload
 ```
 
-A API estará disponível com dois endpoints:
+A API estará disponível na porta `8000` com os seguintes endpoints principais:
 ```
-- http://127.0.0.1:5000/solve (POST)
-- http://127.0.0.1:5000/available_models (GET)
+- http://127.0.0.1:8000/solve_async (POST) -> Inicia uma tarefa e retorna um task_id.
+- http://127.0.0.1:8000/task/{task_id} (GET) -> Verifica o status de uma tarefa.
+- http://127.0.0.1:8000/available_models (GET) -> Lista os modelos disponíveis.
+- http://127.0.0.1:8000/solve (POST) -> Endpoint síncrono para compatibilidade.
 ```
 
 ### 6. Abra a Interface Web
 
-Abra o arquivo `frontend.html` no seu navegador. A interface irá carregar dinamicamente os modelos que estiverem disponíveis (Ollama e/ou OpenAI) em um menu suspenso.
+Abra o arquivo `frontend.html` no seu navegador. A interface irá se conectar à API rodando na porta `8000`, carregar dinamicamente os modelos disponíveis e interagir de forma assíncrona com o backend.
 
 ---
 
-## 💡 Exemplos de Comando Rápido
+## 💡 Exemplos de Perguntas
 
 Use os botões ou digite comandos na interface, selecionando o modelo desejado:
 
-- 💻 `Crie uma calculadora Python simples com GUI usando tkinter`
-- 🎪 `O que pesa mais, um quilograma de aço ou um quilograma de penas?`
-- 🔢 `Quantas vezes a letra e aparece nesta frase?`
-- 🔬 `Explique a relação entre relatividade geral e mecânica quântica.`
+- 💻 **Código:** `Faça uma animação web com um pentágono rotativo e uma bola com física dentro dele`
+- 🧩 **Lógica:** `Um grupo de 4 pessoas com tempos de 1, 2, 5 e 10 minutos precisa cruzar uma ponte com uma tocha. Qual o tempo mínimo?`
+- 🔬 **Acadêmico:** `Explique a teoria da relatividade geral usando o método de debate adversarial para garantir a precisão.`
+- 📜 **Síntese:** `Faça uma síntese completa sobre a história da inteligência artificial, decompondo o problema em sub-questões.`
 
 ---
 
-## 🧠 Principais Recursos da V12.3
+## 🧠 Principais Recursos da V13.2
 
-- **✨ Suporte Multi-Modelo:** Alterne facilmente entre LLMs locais (`gemma3`) e de nuvem (`gpt-4o-mini`) através da interface.
-- ✅ **Classificação de Intenção:** Identifica se o pedido é para código, lógica, fatos, etc.
-- 🧩 **Executor Simbólico:** Valida a lógica de problemas passo a passo.
-- 🔄 **Feedback Loop com Auto-correção:** Utiliza fallback algorítmico quando a geração neural falha.
-- 📚 **Humildade Epistêmica:** Reconhece e sinaliza os limites do seu próprio conhecimento.
-- 💡 **Estratégias Especializadas:** Aplica o método de raciocínio mais adequado para cada tipo de pergunta.
-- 📈 **Sistema de Cache, Saúde e Métricas:** Otimiza o desempenho e monitora a estabilidade.
+- **✨ Suporte Multi-Modelo:** Alterne facilmente entre LLMs locais (`gemma3`) e de nuvem (`gpt-4o`, `gpt-4o-mini`) através da interface.
+- **🚀 API Assíncrona com FastAPI:** Arquitetura robusta e escalável que processa tarefas complexas em segundo plano, melhorando drasticamente a experiência do usuário.
+- **🛠️ Geração de Código Robusta:** Pipeline completo que inclui análise de requisitos, planejamento de arquitetura, geração de código de alta qualidade, validação e templates de fallback.
+- **⚔️ Estratégias de Raciocínio Avançadas:**
+    - **Debate Adversarial:** Usa um modelo "proponente" e um "desafiador" para verificar fatos e aumentar a precisão.
+    - **Autocrítica e Refinamento:** Gera um rascunho, critica-o rigorosamente e depois o refina.
+    - **Decomposição Hierárquica:** Quebra problemas amplos em sub-questões gerenciáveis e depois sintetiza a resposta final.
+- **📚 Humildade Epistêmica:** O sistema continua a reconhecer os limites do seu próprio conhecimento, aplicando a melhor estratégia para cada desafio.
+- **📈 Sistema de Cache, Saúde e Métricas:** Otimiza o desempenho, evita trabalho redundante e monitora a estabilidade do sistema em tempo real.
 
 ---
 
 ## 🛠️ Tecnologias Usadas
 
 - Python 3.8+
+- **FastAPI** + **Uvicorn** (API REST assíncrona de alta performance)
 - [Ollama](https://ollama.com) (para executar LLMs locais)
 - [OpenAI API](https://platform.openai.com/) (para LLMs de nuvem)
-- Flask + Flask-CORS (API REST)
-- python-dotenv (para gerenciamento de chaves de API)
-- HTML/CSS/JS puro (interface interativa e responsiva)
+- `python-dotenv` (para gerenciamento de chaves de API)
+- HTML/CSS/JS puro (interface interativa com polling para resultados assíncronos)
 - Programação Orientada a Objetos com `abc` para abstração de modelos.
-
----
-
-## 🧪 Testes de Robustez
-
-A arquitetura DREAM passou por uma evolução com várias fases, incluindo:
-
-1.  Agente neuro-simbólico ingênuo
-2.  Executor com correção simbólica
-3.  Planejador generalista com classificação de domínio
-4.  Virada epistêmica: admitir a ignorância e sugerir pesquisa
-5.  **Refatoração Multi-Modelo: abstração para suportar diferentes provedores de LLM**
-
----
-
-## 🧑‍💻 Contribuindo
-
-Fique à vontade para abrir *Issues*, *Pull Requests*, ou sugerir melhorias.
-
-Se quiser propor novas estratégias de raciocínio, handlers ou integrações com outros provedores de LLM, envie seu módulo e documentação.
 
 ---
 
 ## 📜 Licença
 
 Este projeto é distribuído sob a Licença MIT.  
-© 2025 — Felipe Cataneo
+© 2024 — Felipe Cataneo

@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DREAM V12.3 - Sistema Unificado</title>
+    <title>DREAM V13.2 - Sistema Unificado (Async)</title>
     <style>
-        /* ... (CSS existente permanece o mesmo) ... */
+        /* ... (TODO o seu CSS existente permanece exatamente o mesmo) ... */
         :root {
             --bg-gradient-start: #1e2a52;
             --bg-gradient-end: #342a53;
@@ -71,7 +71,6 @@
             margin-bottom: 20px;
         }
 
-        /* --- NOVO: Estilo para o seletor de modelo --- */
         .model-selector-container {
             display: flex;
             align-items: center;
@@ -90,7 +89,6 @@
             outline: 2px solid var(--primary-accent);
         }
 
-
         .panel-header {
             font-size: 1.4em;
             font-weight: 600;
@@ -106,12 +104,10 @@
             padding: 10px;
         }
         
-        /* Custom Scrollbar */
         .chat-messages::-webkit-scrollbar { width: 8px; }
         .chat-messages::-webkit-scrollbar-track { background: transparent; }
         .chat-messages::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 4px; }
         .chat-messages::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.4); }
-
 
         .message {
             display: flex;
@@ -193,6 +189,15 @@
 
         .loading { display: none; text-align: center; margin: 15px 0 0; }
         .loading.active { display: block; }
+        .loading span {
+            animation: dots 1.4s infinite;
+            display: inline-block;
+        }
+        @keyframes dots {
+            0%, 20% { content: '.'; }
+            40% { content: '..'; }
+            60% { content: '...'; }
+        }
 
         .status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .status-item { background: var(--panel-bg); padding: 10px; border-radius: 8px; font-size: 0.9em;}
@@ -230,12 +235,11 @@
 <body>
     <div class="container">
         <header class="header">
-            <h1>DREAM V12.3</h1>
+            <h1>DREAM V13.2</h1>
             <p>Interface do Sistema Unificado e Robusto</p>
         </header>
 
         <section class="examples-section">
-            <!-- NOVO: Seção para seleção de modelo -->
             <div class="model-selector-container">
                 <label for="modelSelector"><strong>🤖 Modelo Ativo:</strong></label>
                 <select id="modelSelector">
@@ -256,10 +260,10 @@
                 <div class="panel-header">💬 Conversa</div>
                 <div class="chat-messages" id="chatMessages"></div>
                 <div class="input-container">
-                    <input type="text" class="input-field" id="userInput" placeholder="Faça qualquer pergunta, ou use um comando como 'relatório'..." onkeypress="handleKeyPress(event)">
+                    <input type="text" class="input-field" id="userInput" placeholder="Faça qualquer pergunta..." onkeypress="handleKeyPress(event)">
                     <button class="send-btn" id="sendBtn" onclick="sendMessage()">Enviar</button>
                 </div>
-                <div class="loading" id="loading">Pensando...</div>
+                <div class="loading" id="loading"><span>Pensando</span></div>
             </div>
 
             <div class="status-panel">
@@ -277,9 +281,11 @@
     </div>
 
     <script>
-        // --- API & State Management ---
-        const API_BASE_URL = "http://127.0.0.1:5000";
+        // --- ATUALIZADO: Configurações da API ---
+        const API_BASE_URL = "http://127.0.0.1:8000"; // Porta padrão do FastAPI/Uvicorn
+        let pollingInterval = null;
 
+        // --- ATUALIZADO: Função principal para enviar mensagem e iniciar polling ---
         async function sendMessage() {
             const userInput = document.getElementById('userInput');
             const modelSelector = document.getElementById('modelSelector');
@@ -287,15 +293,21 @@
             if (!message) return;
 
             const selectedModel = modelSelector.value;
+            
+            // Adiciona a mensagem do usuário na tela
             addMessage(message, true);
             userInput.value = '';
+            
+            // Adiciona uma mensagem de "placeholder" para o assistente
+            const assistantMessageElement = addMessage("Enviando requisição...", false);
+            
             setLoading(true);
 
             try {
-                const response = await fetch(`${API_BASE_URL}/solve`, {
+                // 1. Envia a requisição para iniciar a tarefa assíncrona
+                const response = await fetch(`${API_BASE_URL}/solve_async`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    // NOVO: Enviar o modelo selecionado no corpo da requisição
                     body: JSON.stringify({ 
                         problem: message,
                         model: selectedModel 
@@ -303,25 +315,76 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    const errorData = await response.json();
+                    throw new Error(`Erro ao iniciar tarefa: ${errorData.detail || response.statusText}`);
                 }
-                const data = await response.json();
-                renderResponse(data);
-                updateSystemStatus(data);
+                
+                const taskData = await response.json();
+                
+                // 2. Inicia o polling para verificar o status da tarefa
+                pollForTaskResult(taskData.task_id, assistantMessageElement);
+
             } catch (error) {
                 console.error("API Error:", error);
                 const errorResponse = {
                     success: false,
-                    solution: `**🚨 Erro de Conexão com API**\n\nFalha ao conectar com o backend DREAM.\n\n- **O servidor Python está rodando?**\n- **A URL \`${API_BASE_URL}\` está correta?**\n\nDetalhes do erro: ${error.message}`
+                    solution: `**🚨 Erro de Conexão ou Inicialização**\n\nFalha ao conectar com o backend DREAM ou iniciar a tarefa.\n\n- **O servidor FastAPI está rodando na porta 8000?**\n- **A URL \`${API_BASE_URL}\` está correta?**\n\nDetalhes do erro: ${error.message}`
                 };
-                renderResponse(errorResponse);
+                renderResponse(errorResponse, assistantMessageElement);
                 updateSystemStatus({intent: 'Erro', strategy: 'Conexão Falhou'});
-            } finally {
                 setLoading(false);
             }
         }
 
-        // --- NOVO: Função para buscar e popular os modelos disponíveis ---
+        // --- NOVO: Função que verifica o status da tarefa repetidamente ---
+        function pollForTaskResult(taskId, messageElement) {
+            // Limpa qualquer polling anterior para evitar múltiplas execuções
+            if (pollingInterval) {
+                clearInterval(pollingInterval);
+            }
+            
+            messageElement.innerHTML = 'Requisição recebida. Processando...';
+
+            pollingInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/task/${taskId}`);
+                    if (!response.ok) {
+                        // Se a tarefa não for encontrada (404), para o polling
+                        if (response.status === 404) {
+                             throw new Error("Tarefa não encontrada no servidor. Pode ter sido expirada.");
+                        }
+                        throw new Error(`Erro no servidor ao verificar a tarefa: ${response.statusText}`);
+                    }
+                    
+                    const taskStatus = await response.json();
+
+                    if (taskStatus.status === 'completed') {
+                        clearInterval(pollingInterval);
+                        pollingInterval = null;
+                        renderResponse(taskStatus.result, messageElement);
+                        updateSystemStatus(taskStatus.result);
+                        setLoading(false);
+                    } else if (taskStatus.status === 'failed') {
+                        clearInterval(pollingInterval);
+                        pollingInterval = null;
+                        const errorPayload = { success: false, solution: `**❌ Tarefa Falhou**\n\nO servidor encontrou um erro ao processar sua requisição.\n\n**Erro:** ${taskStatus.error}` };
+                        renderResponse(errorPayload, messageElement);
+                        updateSystemStatus({ success: false, intent: 'Erro', strategy: 'Falha no Backend' });
+                        setLoading(false);
+                    }
+                    // Se for 'pending' ou 'processing', continua o loop...
+                } catch (error) {
+                    console.error("Polling Error:", error);
+                    clearInterval(pollingInterval);
+                    pollingInterval = null;
+                    const errorPayload = { success: false, solution: `**🚨 Erro de Polling**\n\nFalha ao obter o status da tarefa.\n\n**Detalhes:** ${error.message}` };
+                    renderResponse(errorPayload, messageElement);
+                    setLoading(false);
+                }
+            }, 2000); // Verifica a cada 2 segundos
+        }
+
+        // --- ATUALIZADO: Função para carregar modelos disponíveis ---
         async function loadAvailableModels() {
             const modelSelector = document.getElementById('modelSelector');
             try {
@@ -348,8 +411,7 @@
             }
         }
         
-        // ... (O restante do JavaScript permanece o mesmo) ...
-        // --- UI Rendering ---
+        // --- ATUALIZADO: addMessage agora retorna o elemento de conteúdo para atualização posterior ---
         function addMessage(content, isUser) {
             const messagesContainer = document.getElementById('chatMessages');
             const messageWrapper = document.createElement('div');
@@ -357,39 +419,31 @@
 
             const avatar = document.createElement('div');
             avatar.className = 'avatar';
-            avatar.textContent = isUser ? '👤' : '🤖'; // Mudei o avatar do assistente
+            avatar.textContent = isUser ? '👤' : '🤖';
             
             const contentDiv = document.createElement('div');
             contentDiv.className = 'message-content';
-            
-            // NOVO: Exibe o modelo usado na resposta do assistente
-            if (!isUser) {
-                const modelSelector = document.getElementById('modelSelector');
-                const modelUsed = modelSelector.value;
-                contentDiv.innerHTML = `<small style="opacity:0.7;display:block;margin-bottom:8px;">Resposta de: <strong>${modelUsed}</strong></small> Processando...`;
-            } else {
-                contentDiv.innerHTML = content;
-            }
+            contentDiv.innerHTML = content;
             
             messageWrapper.appendChild(avatar);
             messageWrapper.appendChild(contentDiv);
             messagesContainer.appendChild(messageWrapper);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-            return contentDiv; // Return for later update
+            return contentDiv; // Retorna o elemento para que possa ser atualizado
         }
 
-        function renderResponse(response) {
-            const messagesContainer = document.getElementById('chatMessages');
-            const responseElements = messagesContainer.querySelectorAll('.message.assistant');
-            const targetElement = responseElements[responseElements.length - 1].querySelector('.message-content');
-            
+        // --- ATUALIZADO: renderResponse agora recebe o elemento a ser atualizado ---
+        function renderResponse(response, targetElement) {
             if (!targetElement) return;
             
-            // NOVO: Preserva a informação do modelo usado
-            const modelInfoHTML = targetElement.innerHTML.split('Processando...')[0];
-            let html = modelInfoHTML;
+            let html = '';
             
+            // Adiciona o nome do modelo usado na resposta
+            if (response.model_used) {
+                 html += `<small style="opacity:0.7;display:block;margin-bottom:8px;">Resposta de: <strong>${response.model_used}</strong></small>`;
+            }
+
             if (response.solution) {
                 html += formatSolutionText(response.solution);
             } else {
@@ -425,11 +479,13 @@
                 });
             });
 
+            const messagesContainer = document.getElementById('chatMessages');
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
+        // --- Funções auxiliares (sem alterações) ---
         function formatSolutionText(text) {
-            let formatted = text
+             let formatted = text
                 .replace(/&/g, "&").replace(/</g, "<").replace(/>/g, ">")
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                 .replace(/\n/g, '<br>')
@@ -457,7 +513,7 @@
             return `
                 <div class="code-execution">
                     <div class="code-execution-header ${successClass}">
-                        🚀 Execução do Código | Status: ${exec.success ? 'Sucesso' : 'Falha'} | Tempo: ${exec.execution_time.toFixed(3)}s
+                        🚀 Execução do Código | Status: ${exec.success ? 'Sucesso' : 'Falha'} | Tempo: ${(exec.execution_time || 0).toFixed(3)}s
                     </div>
                     <div class="code-execution-body">
                         ${outputHtml}
@@ -465,7 +521,7 @@
                 </div>
             `;
         }
-
+        
         function updateSystemStatus(response) {
             document.getElementById('lastStatus').textContent = response.success ? '✅ Sucesso' : '❌ Falha';
             document.getElementById('lastIntent').textContent = response.intent || 'N/D';
@@ -487,18 +543,23 @@
         function handleKeyPress(event) {
             if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
-                sendMessage();
+                // Não envia se já estiver carregando
+                if (!document.getElementById('sendBtn').disabled) {
+                    sendMessage();
+                }
             }
         }
 
         function askExample(question) {
             document.getElementById('userInput').value = question;
-            sendMessage();
+            if (!document.getElementById('sendBtn').disabled) {
+                sendMessage();
+            }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-            loadAvailableModels(); // NOVO: Carregar modelos ao iniciar
-            addMessage("Olá! Sou o DREAM V12.3. Agora você pode escolher o modelo que deseja usar acima. Como posso ajudar?");
+            loadAvailableModels();
+            addMessage("Olá! Sou o DREAM V13.2 (Async). O sistema agora processa tarefas em segundo plano. Como posso ajudar?", false);
         });
     </script>
 </body>

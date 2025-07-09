@@ -2,7 +2,8 @@
 ollama
 numpy
 networkx
-Flask 
-flask-cors 
+fastapi
+uvicorn
+pydantic
 openai
 dotenv
